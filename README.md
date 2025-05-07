@@ -1,6 +1,8 @@
 # OneClickFluxGen
 
 A high-performance AI image generation backend service based on the FLUX model, providing REST API interfaces for image generation.
+极简AI图像生成服务
+基于FLUX模型的高性能AI图像生成后台服务，提供REST API接口生成图像。
 
 ## Features
 
