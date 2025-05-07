@@ -1,0 +1,17 @@
+server:
+  host: "0.0.0.0"
+  port: 8000
+
+model:
+  # 模型路径，请根据实际情况修改
+  model_id: "/mnt/mydisk/models/hub/models--black-forest-labs--FLUX.1-dev/snapshots/0ef5fff789c832c5c7f4e127f94c8b54bbcced44"
+  use_lora: false
+  # LORA 配置，如果 use_lora 为 true 则会加载
+  lora:
+    lora_dir: "output/my_first_flux_lora_v1"
+    weight_name: "my_first_flux_lora_v1_000001750.safetensors"
+  
+  # 推理参数
+  num_inference_steps: 23
+  use_cpu_offload: true
+  output_dir: "./output/images" 
