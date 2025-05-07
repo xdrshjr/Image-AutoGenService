@@ -1,4 +1,4 @@
-# AI图像生成服务
+# OneClickFluxGen-极简AI图像生成服务
 
 基于FLUX模型的高性能AI图像生成后台服务，提供REST API接口生成图像。
 

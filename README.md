@@ -1,4 +1,4 @@
-# AI Image Generation Service
+# OneClickFluxGen
 
 A high-performance AI image generation backend service based on the FLUX model, providing REST API interfaces for image generation.
 
