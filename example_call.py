@@ -2,12 +2,16 @@
 # -*- coding: utf-8 -*-
 
 """
-示例调用脚本 - 演示如何调用图像生成服务API
+Example API Client - Demonstrates how to call the Image Generation Service API
 
-本脚本展示了如何调用远程图像生成服务的三个主要接口：
-1. 根路径：检查服务是否运行
-2. 健康检查：检查服务健康状态
-3. 图像生成：根据提示词生成图像并保存
+This script shows how to use all the main endpoints of the remote image generation service:
+1. Root endpoint: Check if service is running
+2. Health check: Check service health status
+3. Image generation: Generate an image using a prompt and save it
+4. Async image generation: Start an async generation task
+5. Task status: Check the status of an async task
+6. Download result: Download the result of a completed task
+7. List tasks: List all tasks in the system
 """
 
 import requests
@@ -17,136 +21,394 @@ from io import BytesIO
 import os
 import time
 import argparse
+import json
 
-# 默认服务器配置（可以通过命令行参数修改）
-DEFAULT_SERVER_HOST = "192.168.1.48"  # 这里需要替换为您的服务器IP地址
-DEFAULT_SERVER_PORT = 8000  # 根据您的服务配置修改端口号
+# Default server configuration (can be modified via command line arguments)
+DEFAULT_SERVER_HOST = "127.0.0.1"  # Replace with your server IP address
+DEFAULT_SERVER_PORT = 8000  # Modify according to your service configuration
 
 def check_service_status(base_url):
-    """检查服务状态 (根路径)
+    """Check service status (root endpoint)
     
     Args:
-        base_url (str): 服务基础URL
+        base_url (str): Base URL of the service
         
     Returns:
-        dict: 服务状态信息
+        dict: Service status information
     """
-    print("正在检查服务状态...")
+    print("Checking service status...")
     response = requests.get(f"{base_url}/")
     if response.status_code == 200:
         data = response.json()
-        print(f"服务状态: {data}")
+        print(f"Service status: {data}")
         return data
     else:
-        print(f"无法连接到服务，状态码: {response.status_code}")
+        print(f"Could not connect to service, status code: {response.status_code}")
         return None
 
 def check_health(base_url):
-    """检查服务健康状态
+    """Check service health
     
     Args:
-        base_url (str): 服务基础URL
+        base_url (str): Base URL of the service
         
     Returns:
-        dict: 健康状态信息
+        dict: Health status information
     """
-    print("正在检查服务健康状态...")
+    print("Checking service health...")
     response = requests.get(f"{base_url}/api/health")
     if response.status_code == 200:
         data = response.json()
-        print(f"健康状态: {data}")
+        print(f"Health status: {data}")
         return data
     else:
-        print(f"健康检查失败，状态码: {response.status_code}")
+        print(f"Health check failed, status code: {response.status_code}")
         return None
 
 def generate_and_save_image(base_url, prompt, seed=None, output_dir="imgs"):
-    """生成图像并保存
+    """Generate and save image (synchronous)
     
     Args:
-        base_url (str): 服务基础URL
-        prompt (str): 图像生成提示词
-        seed (int, optional): 随机种子，用于复现相同的图像
-        output_dir (str, optional): 图像保存目录
+        base_url (str): Base URL of the service
+        prompt (str): Image generation prompt
+        seed (int, optional): Random seed for reproducibility
+        output_dir (str, optional): Directory to save the image
         
     Returns:
-        str: 保存的图像文件路径，失败则返回None
+        str: Path to the saved image file, or None if failed
     """
-    # 确保输出目录存在
+    # Ensure output directory exists
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     
-    # 准备请求数据
+    # Prepare request data
     request_data = {
         "prompt": prompt
     }
     if seed is not None:
         request_data["seed"] = seed
     
-    print(f"正在生成图像，提示词: '{prompt}'...")
+    print(f"Generating image with prompt: '{prompt}'...")
     if seed is not None:
-        print(f"使用种子: {seed}")
+        print(f"Using seed: {seed}")
     
-    # 发起请求
+    # Send request
     try:
         response = requests.post(f"{base_url}/api/generate", json=request_data)
-        response.raise_for_status()  # 如果响应状态码不是200，会抛出异常
+        response.raise_for_status()  # Raises exception for non-200 status codes
         
         data = response.json()
         
-        # 解码并保存图像
+        # Decode and save image
         image_data = base64.b64decode(data["image_base64"])
         image = Image.open(BytesIO(image_data))
         
-        # 生成文件名
+        # Generate filename
         timestamp = int(time.time())
         seed_value = data.get("seed", "random")
         filename = f"image_{timestamp}_{seed_value}.png"
         file_path = os.path.join(output_dir, filename)
         
-        # 保存图像
+        # Save image
         image.save(file_path)
-        print(f"图像已保存到: {file_path}")
+        print(f"Image saved to: {file_path}")
         
         return file_path
     except requests.exceptions.RequestException as e:
-        print(f"请求失败: {e}")
+        print(f"Request failed: {e}")
         return None
     except Exception as e:
-        print(f"处理图像失败: {e}")
+        print(f"Failed to process image: {e}")
         return None
 
+def create_async_task(base_url, prompt, seed=None):
+    """Create an asynchronous image generation task
+    
+    Args:
+        base_url (str): Base URL of the service
+        prompt (str): Image generation prompt
+        seed (int, optional): Random seed for reproducibility
+        
+    Returns:
+        str: Task ID if successful, None otherwise
+    """
+    # Prepare request data
+    request_data = {
+        "prompt": prompt
+    }
+    if seed is not None:
+        request_data["seed"] = seed
+    
+    print(f"Creating async task with prompt: '{prompt}'...")
+    if seed is not None:
+        print(f"Using seed: {seed}")
+    
+    try:
+        response = requests.post(f"{base_url}/api/generate-async", json=request_data)
+        response.raise_for_status()
+        
+        data = response.json()
+        task_id = data.get("task_id")
+        
+        if task_id:
+            print(f"Async task created with ID: {task_id}")
+            # Save task ID to temp file for convenience
+            with open("temp_task_id.txt", "w") as f:
+                f.write(task_id)
+            return task_id
+        else:
+            print("Failed to get task ID from response")
+            return None
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed: {e}")
+        return None
+
+def check_task_status(base_url, task_id):
+    """Check the status of an async task
+    
+    Args:
+        base_url (str): Base URL of the service
+        task_id (str): Task ID to check
+        
+    Returns:
+        dict: Task status information
+    """
+    print(f"Checking status for task: {task_id}")
+    try:
+        response = requests.get(f"{base_url}/api/task/{task_id}")
+        response.raise_for_status()
+        
+        data = response.json()
+        status = data.get("status", "unknown")
+        progress = data.get("progress", 0)
+        total_steps = data.get("total_steps", 1)
+        
+        progress_percent = (progress / max(1, total_steps)) * 100
+        print(f"Status: {status}, Progress: {progress}/{total_steps} ({progress_percent:.1f}%)")
+        
+        return data
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed: {e}")
+        return None
+
+def wait_for_task_completion(base_url, task_id, max_polls=30, poll_interval=2):
+    """Wait for a task to complete, polling at regular intervals
+    
+    Args:
+        base_url (str): Base URL of the service
+        task_id (str): Task ID to check
+        max_polls (int): Maximum number of status checks
+        poll_interval (int): Time between status checks in seconds
+        
+    Returns:
+        dict: Final task status or None if timed out
+    """
+    print(f"Waiting for task {task_id} to complete...")
+    
+    for i in range(max_polls):
+        status_data = check_task_status(base_url, task_id)
+        
+        if not status_data:
+            print("Failed to get task status")
+            return None
+        
+        if status_data.get("status") in ["completed", "failed"]:
+            print(f"Task {status_data.get('status')}")
+            if status_data.get("status") == "failed" and status_data.get("error"):
+                print(f"Error: {status_data.get('error')}")
+            return status_data
+        
+        print(f"Waiting {poll_interval} seconds before next check...")
+        time.sleep(poll_interval)
+    
+    print(f"Task did not complete within {max_polls * poll_interval} seconds")
+    return None
+
+def get_and_save_result(base_url, task_id, output_dir="imgs"):
+    """Get and save the result of a completed task
+    
+    Args:
+        base_url (str): Base URL of the service
+        task_id (str): Task ID to get result for
+        output_dir (str): Directory to save the image
+        
+    Returns:
+        str: Path to saved image or None if failed
+    """
+    # Ensure output directory exists
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    try:
+        print(f"Getting result for task: {task_id}")
+        response = requests.get(f"{base_url}/api/result/{task_id}")
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        if "image_base64" not in data:
+            print("No image data in response")
+            return None
+        
+        # Decode and save image
+        image_data = base64.b64decode(data["image_base64"])
+        image = Image.open(BytesIO(image_data))
+        
+        # Generate filename
+        timestamp = int(time.time())
+        seed_value = data.get("seed", "random")
+        filename = f"async_image_{timestamp}_{seed_value}.png"
+        file_path = os.path.join(output_dir, filename)
+        
+        # Save image
+        image.save(file_path)
+        print(f"Async generated image saved to: {file_path}")
+        
+        return file_path
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed: {e}")
+        return None
+    except Exception as e:
+        print(f"Failed to process image: {e}")
+        return None
+
+def list_tasks(base_url):
+    """List all tasks in the system
+    
+    Args:
+        base_url (str): Base URL of the service
+        
+    Returns:
+        list: List of tasks
+    """
+    try:
+        print("Getting task list...")
+        response = requests.get(f"{base_url}/api/tasks")
+        response.raise_for_status()
+        
+        data = response.json()
+        tasks = data.get("tasks", [])
+        
+        if tasks:
+            print(f"Found {len(tasks)} tasks:")
+            for task in tasks:
+                status = task.get("status", "unknown")
+                prompt = task.get("prompt", "No prompt")
+                created_at = task.get("created_at", "Unknown time")
+                print(f"- ID: {task.get('id')}, Status: {status}, Prompt: {prompt}, Created at: {created_at}")
+        else:
+            print("No tasks found")
+        
+        return tasks
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed: {e}")
+        return None
+
+def async_workflow(base_url, prompt, seed=None, output_dir="imgs"):
+    """Complete async workflow: create task, wait for completion, download result
+    
+    Args:
+        base_url (str): Base URL of the service
+        prompt (str): Image generation prompt
+        seed (int, optional): Random seed for reproducibility
+        output_dir (str): Directory to save the image
+        
+    Returns:
+        str: Path to saved image or None if failed
+    """
+    # Create task
+    task_id = create_async_task(base_url, prompt, seed)
+    if not task_id:
+        return None
+    
+    # Wait for task to complete
+    final_status = wait_for_task_completion(base_url, task_id)
+    if not final_status or final_status.get("status") != "completed":
+        return None
+    
+    # Get and save result
+    return get_and_save_result(base_url, task_id, output_dir)
+
 def main():
-    """主函数"""
-    # 解析命令行参数
-    parser = argparse.ArgumentParser(description='图像生成服务API调用示例')
-    parser.add_argument('--host', default=DEFAULT_SERVER_HOST, help='服务器主机地址')
-    parser.add_argument('--port', type=int, default=DEFAULT_SERVER_PORT, help='服务器端口')
-    parser.add_argument('--prompt', default="A cute cat, lay in the bed.", help='图像生成提示词')
-    parser.add_argument('--seed', type=int, help='随机种子（可选）')
-    parser.add_argument('--output-dir', default="imgs", help='图像保存目录')
+    """Main function"""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Image Generation Service API Example Client')
+    parser.add_argument('--host', default=DEFAULT_SERVER_HOST, help='Server host address')
+    parser.add_argument('--port', type=int, default=DEFAULT_SERVER_PORT, help='Server port')
+    parser.add_argument('--prompt', default="A cute cat, lay in the bed.", help='Image generation prompt')
+    parser.add_argument('--seed', type=int, help='Random seed (optional)')
+    parser.add_argument('--output-dir', default="imgs", help='Directory to save images')
+    parser.add_argument('--mode', choices=['sync', 'async', 'status', 'result', 'list', 'workflow'],
+                      default='sync', help='Operation mode')
+    parser.add_argument('--task-id', help='Task ID for status/result operations')
     
     args = parser.parse_args()
     
-    # 构建基础URL
+    # Build base URL
     base_url = f"http://{args.host}:{args.port}"
     
-    print(f"使用服务地址: {base_url}")
+    print(f"Using service URL: {base_url}")
     
-    # 1. 检查服务状态
+    # Check service status
     service_status = check_service_status(base_url)
     if not service_status or service_status.get("status") != "running":
-        print("服务未运行，退出程序")
+        print("Service is not running, exiting")
         return
     
-    # 2. 检查服务健康状态
+    # Check service health
     health_status = check_health(base_url)
     if not health_status or health_status.get("status") != "ok":
-        print("服务健康检查未通过，退出程序")
+        print("Service health check failed, exiting")
         return
     
-    # 3. 生成并保存图像
-    generate_and_save_image(base_url, args.prompt, args.seed, args.output_dir)
+    # Perform requested operation
+    if args.mode == 'sync':
+        # Generate and save image (synchronous)
+        generate_and_save_image(base_url, args.prompt, args.seed, args.output_dir)
+    
+    elif args.mode == 'async':
+        # Create async task
+        create_async_task(base_url, args.prompt, args.seed)
+    
+    elif args.mode == 'status':
+        # Check task status
+        if not args.task_id:
+            # Try to read from temp file
+            try:
+                with open("temp_task_id.txt", "r") as f:
+                    task_id = f.read().strip()
+                    print(f"Using task ID from file: {task_id}")
+            except FileNotFoundError:
+                print("No task ID provided and could not read from file")
+                return
+        else:
+            task_id = args.task_id
+        
+        check_task_status(base_url, task_id)
+    
+    elif args.mode == 'result':
+        # Get and save task result
+        if not args.task_id:
+            # Try to read from temp file
+            try:
+                with open("temp_task_id.txt", "r") as f:
+                    task_id = f.read().strip()
+                    print(f"Using task ID from file: {task_id}")
+            except FileNotFoundError:
+                print("No task ID provided and could not read from file")
+                return
+        else:
+            task_id = args.task_id
+        
+        get_and_save_result(base_url, task_id, args.output_dir)
+    
+    elif args.mode == 'list':
+        # List all tasks
+        list_tasks(base_url)
+    
+    elif args.mode == 'workflow':
+        # Complete async workflow
+        async_workflow(base_url, args.prompt, args.seed, args.output_dir)
 
 if __name__ == "__main__":
     main() 

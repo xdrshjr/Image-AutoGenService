@@ -1,51 +1,53 @@
-# AI图像生成服务
+# AI Image Generation Service
 
-这是一个基于FLUX模型的AI图像生成后台服务，提供REST API接口生成图像。
+A high-performance AI image generation backend service based on the FLUX model, providing REST API interfaces for image generation.
 
-## 特性
+## Features
 
-- 基于FastAPI构建的高性能REST API
-- 支持FLUX模型及LORA模型加载
-- 通过配置文件动态配置服务参数
-- 一键启动脚本支持（Windows和Linux/macOS）
-- 提供API测试和健康检查
+- High-performance REST API built with FastAPI
+- Support for FLUX model and LORA model loading
+- Dynamic service configuration via configuration file
+- One-click startup scripts for Windows and Linux/macOS
+- API testing and health check endpoints
+- Both synchronous and asynchronous image generation
+- Task management with progress tracking
 
-## 运行环境要求
+## System Requirements
 
 - Python 3.8+
 - PyTorch 2.0+
-- CUDA支持（可选，用于GPU加速）
+- CUDA support (optional, for GPU acceleration)
 
-## 快速开始
+## Quick Start
 
-### 1. 配置
+### 1. Configuration
 
-编辑`config.yaml`文件，配置服务器地址、端口和模型路径：
+Edit the `config.yaml` file to configure server address, port, and model paths:
 
 ```yaml
 server:
-  host: "0.0.0.0"  # 监听所有网络接口
-  port: 8000        # 服务端口
+  host: "0.0.0.0"  # Listen on all network interfaces
+  port: 8000        # Service port
 
 model:
-  model_id: "/path/to/your/model"  # 修改为您的模型路径
+  model_id: "/path/to/your/model"  # Replace with your model path
   use_lora: false
-  # LORA配置（可选）
+  # LORA configuration (optional)
   lora:
     lora_dir: "output/your_lora_dir"
     weight_name: "your_lora_name.safetensors"
   
-  # 推理参数
+  # Inference parameters
   num_inference_steps: 23
   use_cpu_offload: true
   output_dir: "./output/images"
 ```
 
-### 2. 启动服务
+### 2. Starting the Service
 
 #### Windows:
 
-运行`start.bat`批处理文件：
+Run the `start.bat` batch file:
 
 ```
 start.bat
@@ -53,49 +55,169 @@ start.bat
 
 #### Linux/macOS:
 
-运行`start.sh`脚本（需要先授予执行权限）：
+Run the `start.sh` script (grant execute permission first):
 
 ```
 chmod +x start.sh
 ./start.sh
 ```
 
-### 3. 使用API
+### 3. Using the API
 
-服务启动后，可以通过以下方式访问API：
+After the service starts, you can access the API through:
 
-- API文档：http://localhost:8000/docs
-- 生成图像API：`POST /api/generate`
-- 健康检查API：`GET /api/health`
+- API documentation: http://localhost:8000/docs
+- Image generation API: `POST /api/generate`
+- Health check API: `GET /api/health`
 
-#### 示例请求（使用curl）
+## API Usage Examples
+
+### Example Client
+
+The repository includes an example client (`example_call.py`) that demonstrates how to use all API endpoints. You can run it with various options:
+
+```bash
+# Basic synchronous image generation
+python example_call.py --host 127.0.0.1 --port 8000 --prompt "A cute cat, lay in the bed." --mode sync
+
+# Asynchronous image generation workflow (create, wait, download)
+python example_call.py --prompt "A beautiful landscape with mountains" --mode workflow
+
+# List all tasks
+python example_call.py --mode list
+
+# Check status of a specific task
+python example_call.py --mode status --task-id <task_id>
+
+# Get result of a completed task
+python example_call.py --mode result --task-id <task_id>
+```
+
+### Command-line Options for example_call.py
+
+| Option | Description |
+|--------|-------------|
+| `--host` | Server host address (default: 127.0.0.1) |
+| `--port` | Server port (default: 8000) |
+| `--prompt` | Image generation prompt (default: "A cute cat, lay in the bed.") |
+| `--seed` | Random seed for reproducibility (optional) |
+| `--output-dir` | Directory to save images (default: "imgs") |
+| `--mode` | Operation mode: sync, async, status, result, list, workflow (default: sync) |
+| `--task-id` | Task ID for status/result operations (optional) |
+
+### Using cURL
+
+#### Generate an image (synchronous)
 
 ```bash
 curl -X POST "http://localhost:8000/api/generate" \
      -H "Content-Type: application/json" \
-     -d '{"prompt": "一只小猫坐在窗台上", "seed": 42}'
+     -d '{"prompt": "A small kitten sitting on a window sill", "seed": 42}'
 ```
 
-#### 响应示例
-
+Response:
 ```json
 {
-  "image_base64": "...(base64编码的图像数据)...",
+  "image_base64": "...(base64 encoded image data)...",
   "file_path": "./output/images/20230501_120000.jpg",
-  "prompt": "一只小猫坐在窗台上",
+  "prompt": "A small kitten sitting on a window sill",
   "seed": 42,
   "timestamp": "20230501_120000"
 }
 ```
 
-## 运行测试
+#### Create an asynchronous generation task
 
-使用pytest运行测试：
+```bash
+curl -X POST "http://localhost:8000/api/generate-async" \
+     -H "Content-Type: application/json" \
+     -d '{"prompt": "A beautiful landscape with mountains and a lake", "seed": 123}'
+```
+
+Response:
+```json
+{
+  "task_id": "task_1234567890",
+  "status": "pending"
+}
+```
+
+#### Check task status
+
+```bash
+curl -X GET "http://localhost:8000/api/task/task_1234567890"
+```
+
+Response:
+```json
+{
+  "task_id": "task_1234567890",
+  "status": "in_progress",
+  "progress": 15,
+  "total_steps": 23,
+  "created_at": "2023-05-01T12:00:00"
+}
+```
+
+#### Get task result
+
+```bash
+curl -X GET "http://localhost:8000/api/result/task_1234567890"
+```
+
+Response:
+```json
+{
+  "image_base64": "...(base64 encoded image data)...",
+  "prompt": "A beautiful landscape with mountains and a lake",
+  "seed": 123
+}
+```
+
+#### List all tasks
+
+```bash
+curl -X GET "http://localhost:8000/api/tasks"
+```
+
+Response:
+```json
+{
+  "tasks": [
+    {
+      "id": "task_1234567890",
+      "status": "completed",
+      "prompt": "A beautiful landscape with mountains and a lake",
+      "created_at": "2023-05-01T12:00:00"
+    },
+    {
+      "id": "task_0987654321",
+      "status": "pending",
+      "prompt": "A futuristic city with flying cars",
+      "created_at": "2023-05-01T12:05:00"
+    }
+  ]
+}
+```
+
+## Running Tests
+
+Use pytest to run tests:
 
 ```bash
 pytest
 ```
 
-## 许可证
+For a specific test:
+
+```bash
+# Run only the synchronous image generation test
+pytest tests/test_api.py::test_generate_image
+
+# Run only the asynchronous workflow test
+pytest tests/test_api.py::test_async_image_generation tests/test_api.py::test_task_progress_and_download
+```
+
+## License
 
 MIT 
